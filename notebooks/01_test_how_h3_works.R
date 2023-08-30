@@ -12,6 +12,8 @@ h3_index <- geo_to_h3(road_safety_greater_manchester)
 tbl <- table(h3_index) %>%
   tibble::as_tibble()
 
+tbl
+
 ## convert to `sf` and rename columns
 hexagons <- h3_to_geo_boundary_sf(tbl$h3_index) %>%
   dplyr::mutate(index = tbl$h3_index, accidents = tbl$n)
@@ -31,7 +33,7 @@ map <- leaflet(data = hexagons, width = "100%") %>%
 map
 
 ## sono organizzati come un grafo ( solo 1 parente ma più figli)
-## come funzionano i parenti via h3_to_parent
+## come funzionano i parenti via h3_to_parent
 h3_index_res_10<- geo_to_h3(road_safety_greater_manchester, res = 10)
 
 # nessun parente con sè stesso
@@ -44,5 +46,3 @@ h3_to_parent(h3_index_res_4, res = 4)
 h3_to_children(h3_index_res_4, res = 11)
 
 
-
-s
