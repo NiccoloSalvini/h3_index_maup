@@ -46,3 +46,5 @@ h3_to_parent(h3_index_res_4, res = 4)
 h3_to_children(h3_index_res_4, res = 11)
 
 
+
+

@@ -19,8 +19,6 @@ sf_road_safety_greater_manchester <-
            crs = projcrs)
 
 
-
-
 ui <- fluidPage(
   titlePanel("Grid Type Selector"),
 
