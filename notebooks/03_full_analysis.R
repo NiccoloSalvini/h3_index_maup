@@ -106,7 +106,7 @@ moran_i_res_8$p.value
 moran_i_res_10[[c(3, 1)]]
 moran_i_res_10$p.value
 
-## function to calculate Moran I for each resolution
+# 06 Calculate Moran I for each resolution  ----
 
 # Define your data here
 data(road_safety_greater_manchester, package = "h3")
@@ -158,7 +158,7 @@ moran_results <- map_df(4:13, ~calculate_moran_i(res = .x))
 print(moran_results)
 
 
-## this is s-maup
+# 07 Calculate s-maup at each resolution ----
 calculate_smaup <- function(res) {
   # Convert geo data to h3 indices
   h3_indices <- geo_to_h3(road_safety_greater_manchester, res = res)
@@ -213,7 +213,7 @@ results_smaup <- map_df(4:13, calculate_smaup)
 print(results_smaup)
 
 
-## impact analysis on local moran when introducing random outliers
+# 08 Impact analysis on local moran when introducing random outliers -----
 
 data(road_safety_greater_manchester, package = "h3")
 road_safety_greater_manchester = as.data.frame.matrix(road_safety_greater_manchester)
@@ -224,7 +224,7 @@ gmanchester_sf = st_read("https://raw.githubusercontent.com/OpenDataManchester/g
   st_as_sf()
 
 # Function to generate random points within boundaries
-# Try different smpling method: https://dickbrus.github.io/SpatialSamplingwithR/
+# TODO Try different smpling method: https://dickbrus.github.io/SpatialSamplingwithR/
 generate_random_points <- function(n, boundaries, type = "random") {
   st_sample(boundaries, size = n, type = type) %>%
     st_as_sf() %>%
@@ -254,13 +254,13 @@ simulate_with_outliers <- function(resolution, iterations, n_outliers) {
   results
 }
 
-# Run the simulation
+# 09 Run Simulation. -----
 # how to decide the number of outliers, is there any statistical way to see that?
 # could be the case of generating outliers up to a point that Moran Estimates sensibilty changes
 simulation_results <- map_df(4:13, ~simulate_with_outliers( resolution = .x,iterations = 10, n_outliers = 100))  # For example, 10 iterations with 5 outliers each
 
 
-## visualise newly added points
+## 09.1 Visualise newly rndm added points ----
 library(ggplot2)
 
 ggplot() +
@@ -276,7 +276,7 @@ ggplot() +
   theme_minimal()
 
 
-## Line Plot of Moran's I Estimate by Resolution
+## 09.2  Line Plot of Moran's I Estimate by Resolution ----
 library(ggplot2)
 
 ggplot(simulation_results, aes(x = resolution, y = moran_estimate, group = 1)) +
@@ -289,7 +289,7 @@ ggplot(simulation_results, aes(x = resolution, y = moran_estimate, group = 1)) +
   theme_minimal()
 
 
-##  Scatter Plot of Moran's I Estimate and p-value by Resolution
+##  09.3  Scatter Plot of Moran's I Estimate and p-value by Resolution ----
 ggplot(simulation_results, aes(x = moran_estimate, y = p_value, color = as.factor(resolution))) +
   geom_point() +
   geom_line()+
@@ -301,7 +301,7 @@ ggplot(simulation_results, aes(x = moran_estimate, y = p_value, color = as.facto
 
 
 
-## Faceted Plot for Each Resolution
+##  09.4 Faceted Plot for Each Resolution ----
 ggplot(simulation_results, aes(x = as.factor(1:100), y = moran_estimate)) +
   geom_point() +
   facet_wrap(~resolution) +
@@ -311,17 +311,12 @@ ggplot(simulation_results, aes(x = as.factor(1:100), y = moran_estimate)) +
   theme_minimal()
 
 
-## try also to verify with clusters
-## show how obs assigned via distance method (kmeans) to base level
-## while
-##
-## 1) group observaion together with clustering method
-## 2) run simullation to see who change cluster and when
-## 3) metrics to find who passes from one to the other
+# 10  Kmeans clustering  ----
 set.seed(123)  # Set a random seed for reproducibility
 ## assume 5 cluster s which seems be the case (visual inspection seems that way)
 clusters <- kmeans(road_safety_greater_manchester[, c("lat", "lng")], centers = 5)
 library(ggplot2)
+library(factoextra)
 
 ## see kmeans clusters, however kmeans is sensible to outliers, then this may affect results
 ggplot(road_safety_greater_manchester, aes(x = lng, y = lat, color = as.factor(clusters$cluster))) +
@@ -334,8 +329,16 @@ ggplot(road_safety_greater_manchester, aes(x = lng, y = lat, color = as.factor(c
   coord_sf()+
   theme_minimal()
 
-## try also with non sensitive clustering methods to outliers
+## Partioning Cluster plot
+fviz_cluster(clusters, data = road_safety_greater_manchester,
+             palette = c("#00AFBB","#2E9FDF", "#E7B800", "#FC4E07", "#95B301"),
+             ggtheme = theme_minimal(),
+             main = "Partitioning Clustering Plot" )
+
+# 11 dbscan clustering ----
 library(dbscan)
+library(factoextra)
+
 # Assume eps and minPts are chosen based on domain knowledge or experimentation
 # these are just thrown, let's try to find the best
 eps_value <- 0.026 # example value, adjust based on your data
@@ -361,6 +364,12 @@ ggplot(road_safety_greater_manchester, aes(x = lng, y = lat, color = cluster)) +
   theme_minimal()
 
 
+## Partioning Cluster plot
+fviz_cluster(dbscan_result, data = road_safety_greater_manchester,
+             palette = c("#00AFBB","#2E9FDF", "#E7B800", "#FC4E07", "#95B301", "#771E23"),
+             ggtheme = theme_minimal(),
+             main = "Partitioning Clustering Plot" )
+
 
 
 ## now using kmeans with k = 5 visualise and analyse
@@ -370,7 +379,7 @@ ggplot(road_safety_greater_manchester, aes(x = lng, y = lat, color = cluster)) +
 
 
 
-## THIS IS THE ALGO
+# 10.1 THIS IS THE ALGO
 ## a) assign obs to cluster based on algorithm (kmeans, k = 5)
 ## b) assign cluster observation to respective h3 hexagon to resolution
 ## c) measure mean distance between cluster centroid if cluster centroid is closer to each h3 index that contains observations wrt to other cluster centroids
@@ -436,12 +445,12 @@ for (res in resolutions) {
 
 
 
-## see how model coefficients change across different resolutions
+## [FURTHER] see how model coefficients change across different resolutions
 ## i dont have any covariate
 
 
 
-## cool also to see with different type pof grids like I did in app2
+## [FURTHER] cool also to see with different type pof grids like I did in app2
 ## to show how h3 is not doing its job
 
 
