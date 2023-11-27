@@ -26,6 +26,8 @@ ui <- fluidPage(
     sidebarPanel(
       sliderInput("resolution", "H3 Resolution:",
                   min = 5, max = 10, value = 7, step = 1),
+      sliderInput("squareResolution", "Square Grid Resolution:",
+                  min = 100, max = 1000, value = 500, step = 100, post = " meters"),
       radioButtons("gridType", "Grid Type:",
                    choices = c("H3", "Regular", "Voronoi", "Delaunay"),
                    selected = "H3")
@@ -81,35 +83,35 @@ server <- function(input, output) {
                           hex_map
 
                         },
-                        "Regular" = {
-                          # Generate regular grid for plotting
+                      "Regular" = {
+                        # Generate regular grid based on user-defined resolution
+                        grid_size <- c(input$squareResolution, input$squareResolution)
 
-                          grid <-
-                            st_make_grid(sf_road_safety_greater_manchester) %>%
-                            st_as_sf() %>%
-                            mutate(id = 1:n())
+                        grid <-
+                          st_make_grid(reproj_sf_road_safety_greater_manchester, cellsize = grid_size/10000, square = T) %>% #, cellsize = grid_size
+                          st_as_sf() %>%
+                          mutate(id = 1:n())
 
-                          index <- which(lengths(st_intersects(grid, sf_road_safety_greater_manchester)) > 0)
+                        index <- which(lengths(st_intersects(grid, sf_road_safety_greater_manchester)) > 0)
 
-                          fishnet <- grid[index,]
+                        fishnet <- grid[index,]
 
-                          regular = fishnet |>
-                            st_as_sf() |> # cast to sf
-                            mutate(grid_id = row_number()) |> # create unique ID
-                            st_join(sf_road_safety_greater_manchester) |> # join the species dataset
-                            group_by(grid_id) |> # group by the grid id
-                            count() |> # count the number of rows
-                            # fill the plot by the number of points in the grid
-                            ggplot() +
-                            # make kinda pretty
-                            geom_sf(data = gmanchester_st) +
-                            geom_sf(aes(fill = n, alpha= 0.6),lwd = 0.1, color = "white") +
-                            theme_map()
+                        regular = fishnet |>
+                          st_as_sf() |> # cast to sf
+                          mutate(grid_id = row_number()) |> # create unique ID
+                          st_join(sf_road_safety_greater_manchester) |> # join the dataset
+                          group_by(grid_id) |> # group by the grid id
+                          count() |> # count the number of rows
+                          ggplot() +
+                          geom_sf(data = gmanchester_st) +
+                          geom_sf(aes(fill = n, alpha= 0.6),lwd = 0.1, color = "white") +
+                          geom_sf(data = reproj_sf_road_safety_greater_manchester, alpha = 0.3) +
+                          theme_map()
 
-                          regular
+                        regular
+                      },
 
-                        },
-                        "Voronoi" = {
+                    "Voronoi" = {
                           # Generate Voronoi polygons
 
                           box <- st_bbox( sf_road_safety_greater_manchester ) %>% st_as_sfc()

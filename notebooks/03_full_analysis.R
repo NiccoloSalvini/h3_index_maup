@@ -5,6 +5,7 @@ library(here)
 library(tidyr)
 library(purrr)
 library(spdep)
+library(patchwork)
 
 #  01 Brute Analysis for each for each resolution ----
 
@@ -59,6 +60,140 @@ hexagons_res_10_sf <- h3_to_geo_boundary_sf(tbl_res_10$h3_index) %>%
   dplyr::mutate(
     accidents = tbl_res_10$n
   )
+
+
+# 01.1 visualize density across the three resolutions ----
+plot_res_6 <- ggplot(hexagons_res_6_sf) +
+  geom_sf(aes(fill = accidents)) +
+  labs(title = "Resolution 6", x = "Longitude", y = "Latitude") +
+  scale_fill_viridis_c() +
+  theme_minimal()
+
+plot_res_8 <- ggplot(hexagons_res_8_sf) +
+  geom_sf(aes(fill = accidents)) +
+  labs(title = "Resolution 8", x = "Longitude", y = "Latitude") +
+  scale_fill_viridis_c() +
+  theme_minimal()
+
+plot_res_10 <- ggplot(hexagons_res_10_sf) +
+  geom_sf(aes(fill = accidents)) +
+  labs(title = "Resolution 10", x = "Longitude", y = "Latitude") +
+  scale_fill_viridis_c() +
+  theme_minimal()
+
+
+# 01.2 visualise same point at different resolutions (3 res), on same map ----
+hexagons_res_6_sf <- hexagons_res_6_sf %>% mutate(resolution = '6')
+hexagons_res_8_sf <- hexagons_res_8_sf %>% mutate(resolution = '8')
+hexagons_res_10_sf <- hexagons_res_10_sf %>% mutate(resolution = '10')
+
+# Combine the datasets
+combined_hexagons <- rbind(hexagons_res_6_sf, hexagons_res_8_sf, hexagons_res_10_sf)
+
+# Create the plot
+ggplot(combined_hexagons) +
+  geom_sf(aes(color = resolution, shape = resolution), size = 3) +
+  geom_point(data = data, aes(x = lng, y = lat), alpha = 0.3, size = .2)+
+  labs(title = "Observations Across Different H3 Resolutions, same map",
+       x = "Longitude", y = "Latitude",
+       color = "Resolution", shape = "Resolution") +
+  theme_minimal() +
+  scale_color_manual(values = c("6" = "blue", "8" = "red", "10" = "green")) +
+  scale_shape_manual(values = c("6" = 15, "8" = 17, "10" = 18))
+
+
+# Arrange maps for comparison
+combined_plot <- plot_res_6 + plot_res_8 + plot_res_10 +
+  plot_layout(ncol = 3)
+
+# Print the combined plot
+combined_plot
+
+
+
+
+
+# 01.3 Visualise 3D (mancano i punti) ----
+# functions to create list of h3 indexes and sf objects for each resolutions
+# here h3 index
+create_h3_index_tables <- function(data, resolutions) {
+  lapply(resolutions, function(res) {
+    # Convert geo data to h3 indices
+    h3_indices <- geo_to_h3(data, res = res)
+
+    # Create a table of counts per hex
+    tbl_res <- table(h3_indices) %>%
+      as_tibble() %>%
+      rename(h3_index = h3_indices, count = n)
+
+    return(tbl_res)
+  })
+}
+
+# Example usage
+# Define your data and resolutions
+dataset <- as.data.frame.matrix(road_safety_greater_manchester) # replace with your actual data
+resolutions <- seq(5, 9, by = 1)
+
+h3_index_tables_list <- create_h3_index_tables(dataset, resolutions)
+
+# here h3 index sf object (together with points, commented part)
+create_hexagon_sf_list <- function(data, resolutions) {
+  lapply(resolutions, function(res) {
+    # Convert geo data to h3 indices
+    h3_indices <- geo_to_h3(data, res = res)
+
+    # Create a table of counts per hex
+    tbl_res <- table(h3_indices) %>%
+      tibble::as_tibble() %>%
+      rename(h3_index = h3_indices, count = n)
+
+    # Create sf hexagons
+    hexagons_sf <- h3_to_geo_boundary_sf(tbl_res$h3_index) %>%
+      dplyr::mutate(
+        count = tbl_res$count,
+        resolution = as.character(res)
+      )
+
+    # # Add original data points
+    # data_points_sf <- st_as_sf(data, coords = c("lng", "lat"), crs = 4326) %>%
+    #   mutate(resolution = as.character(res))
+    #
+    # return(list(hexagons = hexagons_sf, points = data_points_sf))
+
+    return(hexagons_sf)
+  })
+}
+
+h3_hexagons_sf_list <- create_hexagon_sf_list(dataset, resolutions)
+
+# 3D vis of hexagons at different resolutions
+p <- plot_ly()
+
+# Iterate over each resolution and add hexagons and points to the plot
+# this works with uncommented `create_hexagon_sf_list` fun
+for (i in seq_along(h3_hexagons_sf_list)) {
+  hexagons_sf <- h3_hexagons_sf_list[[i]]$hexagons
+  points_sf <- h3_hexagons_sf_list[[i]]$points
+
+  # Add hexagons
+  p <- add_sf(p, data = hexagons_sf,
+              z = ~as.numeric(resolution),
+              #i = ~mesh$it[,1]-1, j = ~mesh$it[,2]-1, k = ~mesh$it[,3]-1,
+              color = ~resolution)
+
+  # Add points
+  p <- add_trace(p, data = points_sf, type = "scatter3d", mode = "markers",
+                 x = ~st_coordinates(geometry)[,1], y = ~st_coordinates(geometry)[,2], z = ~as.numeric(resolution),
+                 marker = list(size = 2, color = 'black'))
+}
+
+# Finalize the plot
+p <- p %>% layout(title = '3D Plot of Observations Across H3 Resolutions',
+                  scene = list(xaxis = list(title = 'Longitude'),
+                               yaxis = list(title = 'Latitude'),
+                               zaxis = list(title = 'Resolution')))
+p
 
 
 #  03 Find neighbours ----
@@ -444,13 +579,75 @@ for (res in resolutions) {
 }
 
 
+# 12 show how points change or remains in the same h3 index over different resolutions ----
+# Create both sf and and tb for each resolution
+
+
+# Example usage
+# Define your data and resolutions
+dataset <- road_safety_greater_manchester # replace with your actual data
+resolutions <- seq(5, 9, by = 1)
+
+# Generate the list of sf objects
+h3_hexagons_sf_list <- create_hexagon_sf_list(dataset, resolutions)
+
+
+
+# here you verify that any of these indexes are consistent
+# since event tho one are inside the other they have different name.
+# TODO prendi tutti quelli che hanno appartengono allo stesso cluster ma hanno
+# parente diverso (h3_parent())
+rev(h3_index_tables_list) %>%
+  reduce(left_join, by = "h3_index")
+
+combined_data <- tbl_res_6 %>%
+  left_join(tbl_res_8, by = "h3_index") %>%
+  left_join(tbl_res_10, by = "h3_index")
+
+# Identify changes and consistencies
+combined_data <- combined_data %>%
+  mutate(
+    change_status = case_when(
+      is.na(n.x) | is.na(n.y) | is.na(n) ~ "Changed",
+      TRUE ~ "Consistent"
+    )
+  )
+
+# Prepare data for visualization
+visualization_data <- combined_data %>%
+  count(change_status) %>%
+  mutate(resolution = "Combined 6, 8, 10")
+
+# Visualize with ggplot2
+# just one colums as predicted
+ggplot(visualization_data, aes(x = resolution, y = n, fill = change_status)) +
+  geom_bar(stat = "identity", position = position_dodge()) +
+  labs(title = "Comparison of Observation Changes Across H3 Resolutions",
+       x = "Resolution",
+       y = "Number of Observations") +
+  theme_minimal() +
+  scale_fill_brewer(palette = "Set1")
+
+
+
+
 
 ## [FURTHER] see how model coefficients change across different resolutions
 ## i dont have any covariate
 
 
 
-## [FURTHER] cool also to see with different type pof grids like I did in app2
+## [FURTHER] cool also to see with different type of grids like I did in app2
 ## to show how h3 is not doing its job
+## semi-done + implement custom h3 res choice wrt data, calculate which custom resolution would
+## instead beneficial
+## approfondendo c'è anche la mistura Compacted (sparse) cioè usare risoluzioni diverse per alcune zone
+## più larghe quando meno dense, più fini quando cluster
+
+
+
+## [FURTHER] look math behind hexagons
+## https://github.com/r-spatial/sf/issues/1505
+
 
 
