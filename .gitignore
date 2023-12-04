@@ -48,6 +48,8 @@ po/*~
 # RStudio Connect folder
 rsconnect/
 
+data/last_quarter.rds
+
 data/last_quarter_prezzi.rds
 
 data/last_quarter_anagrafiche.rds
