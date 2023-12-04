@@ -48,6 +48,8 @@ po/*~
 # RStudio Connect folder
 rsconnect/
 
+data/municipalities.geojson
+
 data/last_quarter.rds
 
 data/last_quarter_prezzi.rds
