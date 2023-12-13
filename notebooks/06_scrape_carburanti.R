@@ -18,7 +18,7 @@ library(lubridate)
 library(pins)
 
 # ask for aws credentials
-# board <- board_s3("prezzi-benzina-trimestre", region = "eu-south-1")
+board <- board_s3("prezzi-benzina-trimestre", region = "eu-south-1")
 
 url_prezzi_carb  = "https://www.mimit.gov.it/it/open-data/elenco-dataset/carburanti-archivio-prezzi"
 url_prezzi_carb %>%
@@ -113,48 +113,64 @@ last_quarter_prezzi = map_dfr(list.files("data/prezzo/ftproot/osservaprezzi/copi
 # saveRDS(last_quarter_prezzi, here("data", "last_quarter_prezzi.rds"))
 
 last_quarter_anagrafiche= read_rds(here("data", "last_quarter_anagrafiche.rds"))
-board <- board_s3("prezzi-benzina-trimestre", region = "eu-south-1")
+# board %>% pin_write(last_quarter_anagrafiche)
 
 # ~8ml rows (too many) select only benzina
 last_quarter_prezzi= read_rds(here("data", "last_quarter_prezzi.rds"))
+# board %>% pin_write(last_quarter_prezzi)
+
+## still big # A tibble: 7,928,621 × 16 (not that heavt tho)
+last_quarter =  last_quarter_anagrafiche %>%
+  left_join(last_quarter_prezzi, by = "id_impianto")
+
+# fallo quando hai tempo
+# board %>% pin_write(last_quarter)
+
+# saveRDS(last_quarter, here("data", "last_quarter.rds"))
+last_quarter =  read_rds(here("data",  "last_quarter.rds"))
 
 
-# ~3ml rows (now manageable)
-last_quarter_prezzi_bezina = last_quarter_prezzi %>%
-  filter(desc_carburante == "Benzina")
+last_quarter_prezzi_medi_bezina_self = last_quarter %>%
+  filter(tipo_impianto == "Stradale" & desc_carburante == "Benzina" & is_self == 1) %>%
+  group_by(id_impianto, gestore, latitudine, longitudine) %>%
+  summarise(
+    prezzo_medio = mean(prezzo)
+  ) %>%
+  ungroup()
 
+# saveRDS(last_quarter_prezzi_medi_bezina_self, here("data", "last_quarter_prezzi_medi_bezina_self.rds"))
+# board %>% pin_write(last_quarter_prezzi_medi_bezina_self)
+last_quarter_prezzi_medi_bezina_self =  read_rds(here("data",  "last_quarter_prezzi_medi_bezina_self.rds"))
+
+
+# sf layers
+# (don't really need them unless you want to compare traditional aggregations vs H3 resolutions)
 municipalities_sf =read_sf(here("data", "municipalities.geojson")) %>%
   st_transform(crs = 4326)
 
-# only with benzina this is ~286mln rows (!!)
-last_quarter =  last_quarter_prezzi_bezina %>%
-  left_join(last_quarter_anagrafiche, by = "id_impianto")
+regions_sf =read_sf(here("data", "regions.geojson")) %>%
+  st_transform(crs = 4326)
 
-xsaveRDS(last_quarter, here("data","last_quarter.rds"))
+provinces_sf =read_sf(here("data", "provinces.geojson")) %>%
+  st_transform(crs = 4326)
 
-## le tolgo per ora, poi vanno pulite
-last_quarter_municip_sf = last_quarter %>%
-  distinct(across(everything())) %>%
-  filter(provincia %in% regione_toscana) %>%
-  separate(dt_comu, into =c("data", "ora"), sep = " ") %>%
-  mutate(
-    data_dmy = dmy(data),
-    ora_hms = hms(ora)
-  ) %>%
-  filter(!is.na(longitudine)) %>%
+
+## last_quarter_prezzi_medi_bezina_self preprocess
+sf_last_quarter_prezzi_medi_bezina_self = last_quarter_prezzi_medi_bezina_self %>%
+  filter(!is.na(longitudine) & !is.na(latitudine))  %>%
   st_as_sf(coords = c("longitudine", "latitudine"), crs = 4326)
+
+
+# saveRDS(sf_last_quarter_prezzi_medi_bezina_self, here("data", "sf_last_quarter_prezzi_medi_bezina_self.rds"))
+# board %>% pin_write(sf_last_quarter_prezzi_medi_bezina_self)
+sf_last_quarter_prezzi_medi_bezina_self =  read_rds(here("data",  "sf_last_quarter_prezzi_medi_bezina_self.rds"))
+
 
 
 # intersect, some of them have wrong coordinates and end up outside tuscany
 # TODO trova quelli che finiscono fuori dalla toscana, quelli con coordinate sbagliate.
 
-gas_station_intersect_sf =  st_intersects(sf_municipalities, whole_tuscany_data_sf)
-gas_station_intersect_sf <- whole_tuscany_data_sf[unlist(gas_station_intersect_sf),]
-
-
-board <- board_s3("prezzi-benzina-trimestre", region = "eu-south-1")
-
-board %>% pin_write(last_quarter)
-
-
-read_delim("data/prezzo/ftproot/osservaprezzi/copied/prezzo_alle_8-20230701.csv", delim = ";", skip = 1, name_repair = make_clean_names)
+# gas_station_intersect_sf =  st_intersects(sf_municipalities, whole_tuscany_data_sf)
+# gas_station_intersect_sf <- whole_tuscany_data_sf[unlist(gas_station_intersect_sf),]
+#
+#
