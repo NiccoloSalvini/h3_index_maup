@@ -50,6 +50,10 @@ rsconnect/
 
 data/municipalities.geojson
 
+data/regions.geojson
+
+data/provinces.geojson
+
 data/last_quarter.rds
 
 data/last_quarter_prezzi.rds
@@ -57,5 +61,6 @@ data/last_quarter_prezzi.rds
 data/last_quarter_anagrafiche.rds
 
 data/anagrafica/*
+
 
 data/prezzo/*
