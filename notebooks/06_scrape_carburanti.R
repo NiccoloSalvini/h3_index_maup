@@ -144,7 +144,9 @@ last_quarter_prezzi_medi_bezina_self =  read_rds(here("data",  "last_quarter_pre
 
 
 # sf layers
-# (don't really need them unless you want to compare traditional aggregations vs H3 resolutions)
+# you need it because :
+#   - some coordinates fall off Italy which doesn't make sense
+#   - if you want to compare "administrative" resolutions against "h3" ones
 municipalities_sf =read_sf(here("data", "municipalities.geojson")) %>%
   st_transform(crs = 4326)
 
@@ -160,17 +162,12 @@ sf_last_quarter_prezzi_medi_bezina_self = last_quarter_prezzi_medi_bezina_self %
   filter(!is.na(longitudine) & !is.na(latitudine))  %>%
   st_as_sf(coords = c("longitudine", "latitudine"), crs = 4326)
 
-
-# saveRDS(sf_last_quarter_prezzi_medi_bezina_self, here("data", "sf_last_quarter_prezzi_medi_bezina_self.rds"))
-# board %>% pin_write(sf_last_quarter_prezzi_medi_bezina_self)
-sf_last_quarter_prezzi_medi_bezina_self =  read_rds(here("data",  "sf_last_quarter_prezzi_medi_bezina_self.rds"))
-
-
-
 # intersect, some of them have wrong coordinates and end up outside tuscany
 # TODO trova quelli che finiscono fuori dalla toscana, quelli con coordinate sbagliate.
+sf_use_s2(FALSE)
+gs_mean_prices_intersect_sf =  st_intersects(municipalities_sf, sf_last_quarter_prezzi_medi_bezina_self)
+gs_mean_prices_intersect_sf <- sf_last_quarter_prezzi_medi_bezina_self[unlist(gs_mean_prices_intersect_sf),]
 
-# gas_station_intersect_sf =  st_intersects(sf_municipalities, whole_tuscany_data_sf)
-# gas_station_intersect_sf <- whole_tuscany_data_sf[unlist(gas_station_intersect_sf),]
-#
-#
+# saveRDS(gs_mean_prices_intersect_sf, here("data", "gs_mean_prices_intersect_sf.rds"))
+# board %>% pin_write(gs_mean_prices_intersect_sf)
+gs_mean_prices_intersect_sf =  read_rds(here("data",  "gs_mean_prices_intersect_sf.rds"))
