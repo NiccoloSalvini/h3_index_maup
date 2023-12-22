@@ -62,5 +62,7 @@ data/last_quarter_anagrafiche.rds
 
 data/anagrafica/*
 
+data/*.rds
+
 
 data/prezzo/*
