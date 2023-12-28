@@ -1,3 +1,58 @@
+## "2023-12-13 19:44:57 CET"
+library(h3)
+library(dplyr)
+library(here)
+library(tidyr)
+library(purrr)
+library(spdep)
+library(ggplot2)
+library(patchwork)
+library(plotly)
+library(readr)
+
+gs_mean_prices_intersect_sf =  read_rds(here("data",  "gs_mean_prices_intersect_sf.rds"))
+
+# here h3 index sf obj with prices and counts!
+create_hexagon_sf_list <- function(data, resolutions) {
+  lapply(resolutions, function(res) {
+    # Convert geo data to h3 indices
+    h3_indices <- geo_to_h3(data, res = res)
+
+    # Create a table of counts per hex
+    tbl_res <- data %>%
+      mutate(h3_indices = h3_indices) %>%
+      dplyr::group_by(h3_indices) %>%
+      summarise(
+        n = n(),
+        prezzo_medio_per_res = mean(prezzo_medio)
+      )
+
+    # Create sf hexagons
+    hexagons_sf <- h3_to_geo_boundary_sf(tbl_res$h3_indices) %>%
+      dplyr::mutate(
+        count = tbl_res$n,
+        prezzo_medio_per_res = tbl_res$prezzo_medio_per_res,
+        resolution = as.factor(res)
+      )
+
+    # Add original data points
+    data_points_sf <- st_as_sf(data, coords = c("X", "Y"), crs = 4326) %>%
+      mutate(resolution = as.character(res))
+
+    return(list(hexagons = hexagons_sf, points = data_points_sf))
+
+    # return(hexagons_sf)
+  })
+}
+
+
+h3_hexagons_sf_list <- create_hexagon_sf_list(gs_mean_prices_intersect_sf, resolutions)
+
+
+
+
+
+
 library(ggplot2)
 theme_map <- function(...) {
   theme_minimal() +

@@ -13,12 +13,12 @@ library(rgeoda)
 library(tmap)
 library(RColorBrewer)
 
-# 1 path to save and read proproc file
+# 1 path to save and read proproc file ----
 lisa_plot_path = here("images", "lisa_plots")
 gs_mean_prices_intersect_sf =  read_rds(here("data",  "gs_mean_prices_intersect_sf.rds"))
 
 
-##
+# 2 function to create sf each H3 res (you got also data points) ----
 create_hexagon_sf_list <- function(data, resolutions) {
   lapply(resolutions, function(res) {
     # Convert geo data to h3 indices
@@ -51,22 +51,15 @@ create_hexagon_sf_list <- function(data, resolutions) {
   })
 }
 
+# 3 choose res vector and map through each resolution -----
 resolutions <- 4:13
 
 h3_hexagons_sf_list <- create_hexagon_sf_list(gs_mean_prices_intersect_sf, resolutions)
 
-# takes moran result and produce scatterplot
-create_moran_scatterplot <- function(moran_result, data) {
-  ggplot(data, aes(x = prezzo_medio_per_res, y = moran_result$residuals)) +
-    geom_point() +
-    xlab("Variable of Interest") +
-    ylab("Spatially Lagged Variable") +
-    ggtitle("Moran Scatterplot")
-}
-
+# 4 LISA plot via `rgeoda` ----
 ## function extracteed from
 ## https://spatialanalysis.github.io/handsonspatialdata/local-spatial-autocorrelation-1.html
-
+## TODO da riguardare
 lisa_map <- function(df, alpha = .05) {
 
   res = unique(pull(df, resolution))
@@ -103,11 +96,11 @@ lisa_map <- function(df, alpha = .05) {
 
 }
 
-
+# RUN!
 map(map(h3_hexagons_sf_list, 1), .f = lisa_map )
 
 
-# questa al posto dello scatter plot con la linea
+# 5 LISA Significance map ----
 significance_map <- function(df, permutations = 999, alpha = .05) {
 
   res = unique(pull(df, resolution))
@@ -138,56 +131,9 @@ significance_map <- function(df, permutations = 999, alpha = .05) {
   return(plt_sign)
 }
 
-
+# RUN!
 map(map(h3_hexagons_sf_list, 1), .f = ~significance_map(df = .x,permutations = 999) )
 
 
-
-## calculare local moran I (questa è da implementare)
-# calculate_moran_i <- function(data = gs_mean_prices_intersect_sf, res) {
-#
-#   h3_indices <- geo_to_h3(data, res = res)
-#
-#   # Create a table of counts per hex
-#   tbl_res <- data %>%
-#     mutate(h3_indices = h3_indices) %>%
-#     dplyr::group_by(h3_indices) %>%
-#     summarise(
-#       n = n(),
-#       prezzo_medio_per_res = mean(prezzo_medio)
-#     )
-#
-#   # Create sf hexagons
-#   hexagons_sf <- h3_to_geo_boundary_sf(tbl_res$h3_indices) %>%
-#     dplyr::mutate(
-#       count = tbl_res$n,
-#       prezzo_medio_per_res = tbl_res$prezzo_medio_per_res,
-#       resolution = as.factor(res)
-#     )
-#
-#   N = nrow(hexagons_sf)
-#
-#   # Find neighbours
-#   cat("calculating for res:", res , " \n")
-#   hexagons_nb <- poly2nb(hexagons_sf, queen=TRUE)
-#
-#   # Convert to listw
-#   weights_res <- nb2listw(hexagons_nb, style = "W", zero.policy = TRUE)
-#
-#   # Calculate Moran I
-#   moran_i_res <- moran.test(hexagons_sf$prezzo_medio_per_res, weights_res, zero.policy = TRUE)
-#
-#   # moran_plot = moran.plot(hexagons_sf$accidents,labels = hexagons_sf$h3_index, weights_res, pch=19)
-#   scatterplot <- create_moran_scatterplot(moran_i_res, data)
-#
-#   # Return the results
-#   list(
-#     resolution = res,
-#     moran_estimate = moran_i_res[[c(3, 1)]],
-#     p_value = moran_i_res$p.value,
-#     data_points = N,
-#     scatter = scatterplot
-#     # moran_plot = moran_plot
-#   )
-# }
-
+# lisa resolution 0 contro lisa res x miss classification.
+# perc per area
