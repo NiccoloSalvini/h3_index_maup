@@ -246,9 +246,28 @@ moran_i_res_10$p.value
 # Define your data here
 data(road_safety_greater_manchester, package = "h3")
 
+# questo non ha senso perchè è point pattern senza livello corretto di autocorrelazione
+# road_safety_greater_manchester = as.data.frame.matrix(road_safety_greater_manchester)
+# road_safety_greater_manchester$accidents = 1
+#
+# # Compute baseline Moran I for no H3 indexing
+# projcrs <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
+# sf_road_safety_greater_manchester <- st_as_sf(x = road_safety_greater_manchester,
+#                                               coords = c("lat", "lng"),
+#                                               crs = projcrs)
+#
+# road_safety_greater_manchester_nb <- poly2nb(sf_road_safety_greater_manchester)
+#
+# # Convert to listw
+# weights_res_road_safety <- nb2listw(road_safety_greater_manchester_nb, style = "W", zero.policy = TRUE)
+#
+# # Calculate Moran I
+# moran_i_res <- moran.test(sf_road_safety_greater_manchester$accidents, weights_res_road_safety, zero.policy = TRUE)
+
 # Function to calculate Moran's I for a given resolution
 # can also plot moran plots (uncomment row) -> it breaks with a weird error.
 calculate_moran_i <- function(data = road_safety_greater_manchester, res) {
+
     # Convert geo data to h3 indices
     h3_indices <- geo_to_h3(data, res = res)
 
@@ -287,6 +306,7 @@ calculate_moran_i <- function(data = road_safety_greater_manchester, res) {
 }
 
 # Apply the function to all resolutions (0 to 15)
+# TODO fix when res < 4 and > 13
 moran_results <- map_df(4:13, ~calculate_moran_i(res = .x))
 
 # View the results
