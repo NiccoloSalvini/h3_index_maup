@@ -7,7 +7,6 @@ gs_mean_prices_intersect_sf =  read_rds(here("data",  "gs_mean_prices_intersect_
 # ggplot(gs_mean_prices_intersect_sf) +
 #   geom_sf(alpha = .6, size = .2)
 
-
 #  01 Brute Analysis for each for each resolution for counts ----
 #  TODO implement for prices instead of counts
 generate_h3_plot <- function(data, resolution, fill = "prezzo_medio_per_res") {
@@ -52,16 +51,13 @@ plot_res_4 <- generate_h3_plot(gs_mean_prices_intersect_sf, resolution = 4)$plot
 plot_res_5 <- generate_h3_plot(gs_mean_prices_intersect_sf, resolution =5)$plot
 plot_res_6 <- generate_h3_plot(gs_mean_prices_intersect_sf, resolution = 6)$plot
 
-
 # plot concentration of gas stations at different res
 plot_res_3_count <- generate_h3_plot(gs_mean_prices_intersect_sf, resolution = 3, fill = "count")$plot
 plot_res_4_count <- generate_h3_plot(gs_mean_prices_intersect_sf, resolution = 4, fill = "count")$plot
 plot_res_5_count <- generate_h3_plot(gs_mean_prices_intersect_sf, resolution =5, fill = "count")$plot
 plot_res_6_count <- generate_h3_plot(gs_mean_prices_intersect_sf, resolution = 6, fill = "count")$plot
 
-
 # 01.2 visualise same point at different resolutions (3 res), on same map ----
-
 combined_hexagons = map_dfr(c(3,4,5), ~generate_h3_plot(data = gs_mean_prices_intersect_sf, resolution = .x)$hexagons)
 
 # Create the plot
@@ -80,7 +76,7 @@ ggplot(combined_hexagons) +
 combined_plot <- plot_res_3 + plot_res_4 + plot_res_5 +
   plot_layout(ncol = 3)
 
-# 06 Calculate Moran I for each resolution and compare with ground truth  ----
+# 02 Calculate Moran I for each resolution and compare with ground truth  ----
 
 # Calculate Moran base case:
 listw_points <- nb2listw(knn2nb(knearneigh(st_coordinates(gs_mean_prices_intersect_sf))))
@@ -153,8 +149,20 @@ moran_bias = moran_results %>%
     moran_rel_bias = moran_point - moran_estimate/ moran_point
     )
 
-# visualise bias
 
+# Plot for Relative Moran's Bias
+# TODO add every tick
+# TODO add for each res (1:3 and 13:15 missing)
+ggplot(moran_bias, aes(x = resolution, y = moran_rel_bias)) +
+  geom_line(color = "green", size = 1) +
+  geom_point(color = "darkgreen", size = 3, shape = 21, fill = "lightgreen") +
+  # scale_y_continuous(limits = c(0, 1)) +
+  # scale_x_discrete(breaks = as.factor(moran_bias$resolution)) +
+  labs(title = "Relative Moran's I Bias per Resolution",
+       x = "Resolution",
+       y = "Relative Moran's I Bias") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
 
 

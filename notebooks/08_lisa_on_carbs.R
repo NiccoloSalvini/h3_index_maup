@@ -11,7 +11,7 @@ library(readr)
 library(sf)
 library(rgeoda)
 library(tmap)
-library(RColorBrewer)
+library(RColorBrewer)+
 
 # 1 path to save and read proproc file ----
 lisa_plot_path = here("images", "lisa_plots")

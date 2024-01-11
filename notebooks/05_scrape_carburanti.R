@@ -76,8 +76,6 @@ download_and_unzip <- function(href, folder) {
 download_and_unzip(href = hrefs_tab_anagrafica[1], folder = "data/anagrafica")
 download_and_unzip(href = hrefs_tab_prezzo[1], folder = "data/prezzo")
 
-
-
 aggregate_within_folder <- function(path, start, end) {
 
   filename = basename(path)
