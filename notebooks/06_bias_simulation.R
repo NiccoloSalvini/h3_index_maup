@@ -1,7 +1,3 @@
-ggplot() +
-  geom_sf(data=map) +
-  geom_sf(data=base_hmaps[[res]], size=0.8)
-
 # Required libraries
 library(sf)
 library(spdep)
@@ -17,7 +13,8 @@ library(parallel)
 library(tictoc)
 library(latex2exp)
 
-# Read the map of Italy
+# 01 commons and utils  ----
+# from 06_simulation.R
 map <- read_sf("data/ProvCM01012023_g/ProvCM01012023_g_WGS84.shp")
 gs_mean_prices_intersect_sf =  read_rds(here("data",  "gs_mean_prices_intersect_sf.rds")) %>%
   rename(prezzo_medio_trimestre = prezzo_medio)
@@ -44,7 +41,8 @@ gen_hmap <- function(map, res=1){
     h3_to_geo_boundary_sf()
 }
 
-# for res 0 (i.e. ground thruth)
+# 02 Generate Moran's I for ground thruth ----
+# i.e. res = 0
 N = nrow(gs_mean_prices_intersect_sf)
 listw_points <- nb2listw(knn2nb(knearneigh(st_coordinates(gs_mean_prices_intersect_sf), k = 5)))
 moran_ground_thruth <- moran.mc(gs_mean_prices_intersect_sf$prezzo_medio_trimestre, listw_points, 999)
@@ -59,6 +57,7 @@ ground_thruth_mean = data.frame(
   data_points = N
 )
 
+# 03 calculate bias per res ----
 simulate_moran_bias_per_res <- function(res,
                                         points = gs_mean_prices_intersect_sf,
                                         stat_type = "mean",
@@ -138,12 +137,14 @@ ground_thruth = data.frame(
   data_points = N
 )
 
+
+# 04 run simulation ----
 # TODO fallo per tutte le risoluzioni
 # - fallo per tutte le risoluzioni
-
 plan(multicore, workers = parallel::detectCores())
 
 res_vector = 1:8
+
 sim_plan = expand_grid(
   res_vector = res_vector,
   stat = c("mean", "median")
@@ -184,20 +185,10 @@ final <- final %>%
   mutae
 
 
-# metric_names <- list(
-#   "bias" = TeX("$\textbf{B}$"),
-#   "relative_bias" = TeX("$\textbf{RB}$")
-# )
-
-metric_names <- list(
-  "bias" = md("**R**"),
-  "relative_bia" =  md("**RB**")
-)
-
-# Plotting with faceting
-# TODO change facet labels
+# 05 Plotting bias and rel bias ----
+# TODO change facet labels\x
 bias_plot = ggplot(final, aes(x = factor(resolution), y = value, group = resolution)) +
-  facet_wrap(~ metric, scales = "free_y", labeller = as_labeller(metric_names)) +
+  facet_wrap(~ metric, scales = "free_y") +
   geom_line(aes(y = value, group =metric )) +
   geom_point(aes(y = value, group =metric), alpha= .3) +
   ylab("Value") +
