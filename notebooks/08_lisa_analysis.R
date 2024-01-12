@@ -113,7 +113,7 @@ lisa_map <- function(hex_map,
     filter(!is.na(stat))
 
   w <- queen_weights(hex_map)
-  lisa <- local_moran(w, hex_map['stat'])
+  lisa <- local_moran(w, hex_map['stat.x'])
   clusters <- lisa_clusters(lisa, cutoff = alpha)
   labels <- lisa_labels(lisa)
   pvalue <- lisa_pvalues(lisa)
@@ -126,12 +126,12 @@ lisa_map <- function(hex_map,
   hex_map["lisa_clusters"] <- clusters
 
   plt = tm_shape(hex_map) +
-    tm_fill("lisa_clusters",
-            breaks = c(1, 2, 3, 4, 5, 6),
-            title = "",
-            palette =  c("red", "blue", "lightpink", "skyblue2", "white"),
-            labels = c("High-High", "Low-Low", "High-Low",
-                                "Low-High", "Non-significant")) +
+    tm_fill("lisa_clusters") +
+            # breaks = c(1, 2, 3, 4, 5, 6),
+            # title = "",
+            # palette =  c("red", "blue", "lightpink", "skyblue2", "white"),
+            # labels = c("High-High", "Low-Low", "High-Low",
+            #                     "Low-High", "Non-significant")) +
     tm_legend(text.size = 1) +
     tm_borders(alpha = 0.5) +
     tm_layout(

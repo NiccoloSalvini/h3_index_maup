@@ -16,6 +16,7 @@ library(latex2exp)
 # 01 commons and utils  ----
 # from 06_simulation.R
 map <- read_sf("data/ProvCM01012023_g/ProvCM01012023_g_WGS84.shp")
+# TODO prezzi mediani
 gs_mean_prices_intersect_sf =  read_rds(here("data",  "gs_mean_prices_intersect_sf.rds")) %>%
   rename(prezzo_medio_trimestre = prezzo_medio)
 
@@ -36,7 +37,7 @@ gen_hmap <- function(map, res=1){
   map %>%
     st_union() %>%
     st_transform(4326) %>%
-    # from h3 pkg fills with hexs of a given res poly
+    # from h3 pkg fills with hexs of a given res pol
     polyfill(res = res) %>%
     h3_to_geo_boundary_sf()
 }
@@ -66,7 +67,8 @@ simulate_moran_bias_per_res <- function(res,
   hmap <- base_hmaps[[res]]
 
   tic(msg = paste("calculating", stat_type, "per hex at res:", res , "... \n"))
-  values <- st_join(st_as_sf(points) %>%
+
+  values <- st_join(st_as_sf(gs_mean_prices_intersect_sf) %>%
                       st_transform(4326), hmap, join = st_within) %>%
     group_by(h3_index) %>%
     summarise(
@@ -74,6 +76,7 @@ simulate_moran_bias_per_res <- function(res,
       ) %>%
     st_drop_geometry() %>%
     filter(!is.na(h3_index))
+
   toc(quiet = quiet)
 
   tic("joining values on hmap")
@@ -125,17 +128,17 @@ simulate_moran_bias_per_res <- function(res,
 
 }
 
-N = nrow(gs_mean_prices_intersect_sf)
-listw_points <- nb2listw(knn2nb(knearneigh(st_coordinates(gs_mean_prices_intersect_sf), k = 5)))
-moran_groud_thruth <- moran.mc(gs_mean_prices_intersect_sf$prezzo_medio_trimestre, listw_points, 999)
-
-ground_thruth = data.frame(
-  resolution = 0,
-  stat_type = "mean",
-  moran_estimate = moran_groud_thruth$statistic,
-  p_value = moran_groud_thruth$p.value,
-  data_points = N
-)
+# N = nrow(gs_mean_prices_intersect_sf)
+# listw_points <- nb2listw(knn2nb(knearneigh(st_coordinates(gs_mean_prices_intersect_sf), k = 5)))
+# moran_groud_thruth <- moran.mc(gs_mean_prices_intersect_sf$prezzo_medio_trimestre, listw_points, 999)
+#
+# ground_thruth = data.frame(
+#   resolution = 0,
+#   stat_type = "mean",
+#   moran_estimate = moran_groud_thruth$statistic,
+#   p_value = moran_groud_thruth$p.value,
+#   data_points = N
+# )
 
 
 # 04 run simulation ----
@@ -143,7 +146,7 @@ ground_thruth = data.frame(
 # - fallo per tutte le risoluzioni
 plan(multicore, workers = parallel::detectCores())
 
-res_vector = 1:8
+res_vector = 1:9
 
 sim_plan = expand_grid(
   res_vector = res_vector,
