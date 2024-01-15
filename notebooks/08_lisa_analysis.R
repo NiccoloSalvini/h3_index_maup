@@ -15,6 +15,8 @@ library(latex2exp)
 library(rgeoda)
 library(tmap)
 library(RColorBrewer)
+library(readr)
+library(purrr)
 
 
 # 1 path to save and read proproc file ----
@@ -47,7 +49,18 @@ gen_hmap <- function(map, res=1){
     mutate(res = res)
 }
 
-hex_map = gen_hmap(map = map, res = 5)
+
+match_palette <- function(patterns, classifications, colors){
+  classes_present <- base::unique(patterns)
+  mat <- matrix(c(classifications,colors), ncol = 2)
+  logi <- classifications %in% classes_present
+  pre_col <- matrix(mat[logi], ncol = 2)
+  pal <- pre_col[,2]
+  return(pal)
+}
+
+# test
+# hex_map = gen_hmap(map = map, res = 5)
 
 # 2 function to create sf each H3 res (you got also data points) ----
 # create_hexagon_sf_list <- function(data, resolutions) {
@@ -83,16 +96,22 @@ hex_map = gen_hmap(map = map, res = 5)
 # }
 
 # 3 choose res vector and map through each resolution -----
-plan(multicore, workers = parallel::detectCores())
+plan(multisession, workers = parallel::detectCores())
 
-res_vector = 1:4
+res_vector = 3:8
 
 # build maps
 base_hmaps <- future_map(res_vector, gen_hmap, map=map)
 
+# stop paralelle  backend
+plan(sequential)
+
+# save rds for res untill 8
+# saveRDS(base_hmaps, "data/base_hmaps.rds")
+base_hmaps = read_rds("data/base_hmaps.rds")
+
 # 4 LISA plot via `rgeoda` ----
 ## https://spatialanalysis.github.io/handsonspatialdata/local-spatial-autocorrelation-1.html
-## TODO da riguardare
 lisa_map <- function(hex_map,
                      points = gs_mean_prices_intersect_sf,
                      stat_type = "mean",
@@ -113,7 +132,7 @@ lisa_map <- function(hex_map,
     filter(!is.na(stat))
 
   w <- queen_weights(hex_map)
-  lisa <- local_moran(w, hex_map['stat.x'])
+  lisa <- local_moran(w, hex_map['stat'])
   clusters <- lisa_clusters(lisa, cutoff = alpha)
   labels <- lisa_labels(lisa)
   pvalue <- lisa_pvalues(lisa)
@@ -121,23 +140,38 @@ lisa_map <- function(hex_map,
   lisa_patterns <- labels[clusters+1]
 
   pal <- match_palette(lisa_patterns,labels,colors)
-  labels_name <- labels[labels %in% lisa_patterns]
+  labels <- labels[labels %in% lisa_patterns]
 
   hex_map["lisa_clusters"] <- clusters
 
   plt = tm_shape(hex_map) +
-    tm_fill("lisa_clusters") +
-            # breaks = c(1, 2, 3, 4, 5, 6),
-            # title = "",
-            # palette =  c("red", "blue", "lightpink", "skyblue2", "white"),
-            # labels = c("High-High", "Low-Low", "High-Low",
-            #                     "Low-High", "Non-significant")) +
-    tm_legend(text.size = 1) +
-    tm_borders(alpha = 0.5) +
+    tm_fill(
+      "lisa_clusters",
+      title = "",
+      labels = labels,
+      palette = pal,
+      style = "cat"
+      ) +
+    tm_borders(alpha = 0.2 ) +
     tm_layout(
       title = paste("LISA per H3, res: ", res),
-      legend.outside = TRUE)
+      legend.outside = TRUE,
+      frame = F
+  )
 
+  # plt = tm_shape(hex_map) +
+  #   tm_fill("lisa_clusters") +
+  #           # breaks = c(1, 2, 3, 4, 5, 6),
+  #           # title = "",
+  #           # palette =  c("red", "blue", "lightpink", "skyblue2", "white"),
+  #           # labels = c("High-High", "Low-Low", "High-Low",
+  #           #                     "Low-High", "Non-significant")) +
+  #   tm_legend(text.size = 1) +
+  #   tm_borders(alpha = 0.5) +
+  #   tm_layout(
+  #     title = paste("LISA per H3, res: ", res),
+  #     legend.outside = TRUE)
+  cat("generating plot for res:", res, "\n")
   tmap_save(tm = plt, paste0(lisa_plot_path, "/lisa_plot_res_", res, ".png", collapse = "/"))
 
   return(plt)
@@ -145,15 +179,30 @@ lisa_map <- function(hex_map,
 }
 
 # RUN!
-map(map(h3_hexagons_sf_list, 1), .f = lisa_map )
+map(base_hmaps, .f = lisa_map)
 
 
 # 5 LISA Significance map ----
-significance_map <- function(df, permutations = 999, alpha = .05) {
+#
+significance_map <- function(hex_map, points = gs_mean_prices_intersect_sf  ,
+                             permutations = 999, alpha = .05, stat_type = "mean") {
 
-  res = unique(pull(df, resolution))
-  w <- queen_weights(df)
-  lisa <- local_moran(w, df['prezzo_medio_per_res'])
+  res = unique(pull(hex_map, res))
+  values <- st_join(st_as_sf(points) %>%
+                      st_transform(4326), hex_map, join = st_within) %>%
+    group_by(h3_index) %>%
+    summarise(
+      stat = compute_stat(prezzo_medio_trimestre, stat_type)
+    ) %>%
+    st_drop_geometry() %>%
+    filter(!is.na(h3_index))
+
+  hex_map <- hex_map %>%
+    left_join(values, by = join_by(h3_index)) %>%
+    filter(!is.na(stat))
+
+  w <- queen_weights(hex_map)
+  lisa <- local_moran(w, hex_map['stat'])
 
   pvalue <- lisa_pvalues(lisa)
   target_p <- 1 / (1 + permutations)
@@ -164,23 +213,32 @@ significance_map <- function(df, permutations = 999, alpha = .05) {
   brks3 <- c(0, brks2, 1)
 
   cuts <- cut(pvalue, breaks = brks3,labels = labels)
-  df["sig"] <- cuts
+  hex_map["sig"] <- cuts
 
   pal <- rev(brewer.pal(length(labels), "Greens"))
   pal[length(pal)] <- "#D3D3D3"
 
-  plt_sign =  tm_shape(df) +
+  plt_sign =  tm_shape(hex_map) +
     tm_fill("sig", palette = pal, title =  "") +
-    tm_borders(alpha = .5) +
-    tm_layout(title = paste("LM Map per h3", res, collapse = " "), legend.outside = TRUE)
+    tm_borders(alpha = .2) +
+    tm_layout(
+      title = paste("Significance h3 res:", res, collapse = " "),
+      legend.outside = TRUE,
+      frame = F
+      )
 
+  cat("generating significance map per h3 res:", res, "\n")
   tmap_save(tm = plt_sign, paste0(lisa_plot_path, "/significance/local_moran_res_", res, ".png", collapse = "/"))
 
   return(plt_sign)
 }
 
 # RUN!
-map(map(h3_hexagons_sf_list, 1), .f = ~significance_map(df = .x,permutations = 999) )
+map(base_hmaps, .f = ~significance_map(hex_map = .x) )
+
+# paralle backend
+plan(sequential)
+
 
 
 # lisa resolution 0 contro lisa res x miss classification.
