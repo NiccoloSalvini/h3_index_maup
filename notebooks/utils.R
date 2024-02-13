@@ -46,11 +46,7 @@ create_hexagon_sf_list <- function(data, resolutions) {
 }
 
 
-h3_hexagons_sf_list <- create_hexagon_sf_list(gs_mean_prices_intersect_sf, resolutions)
-
-
-
-
+# h3_hexagons_sf_list <- create_hexagon_sf_list(gs_mean_prices_intersect_sf, resolutions)
 
 
 library(ggplot2)
@@ -100,4 +96,79 @@ theme_map <- function(...) {
                                   color = "#939184"),
       ...
     )
+}
+
+
+library(sf)
+library(spdep)
+library(h3)
+library(ggplot2)
+library(dplyr)
+library(parallel)
+library(igraph)
+library(patchwork)
+library(scales)
+
+map <- read_sf("data/ProvCM01012023_g/ProvCM01012023_g_WGS84.shp")
+mstconnect <- function(polys, nb, distance="centroid"){
+
+  if(distance == "centroid"){
+    coords = sf::st_coordinates(sf::st_centroid(sf::st_geometry(polys)))
+    dmat = as.matrix(dist(coords))
+  }else if(distance == "polygon"){
+    dmat = sf::st_distance(polys) + 1 # offset for adjacencies
+    diag(dmat) = 0 # no self-intersections
+  }else{
+    stop("Unknown distance method")
+  }
+  gfull = igraph::graph.adjacency(dmat, weighted=TRUE, mode="undirected")
+  gmst = igraph::mst(gfull)
+  edgemat = as.matrix(igraph::as_adj(gmst))
+  edgelistw = spdep::mat2listw(edgemat, style = "M")
+  edgenb = edgelistw$neighbour
+  attr(edgenb,"region.id") = attr(nb, "region.id")
+  allnb = spdep::union.nb(nb, edgenb)
+  allnb
+}
+
+gen_hmap <- function(map, res=1){
+  map %>%
+    st_union() %>%
+    st_transform(4326) %>%
+    polyfill(res = res) %>%
+    h3_to_geo_boundary_sf()
+}
+
+gen_points <- function(map, size=500, type="random", rho=0){
+  points <- st_sample(map, size = size, type = type, exact = TRUE) %>%
+    st_as_sf()
+
+  neighbors <- knn2nb(knearneigh(st_coordinates(points), k = 5))
+  W <- nb2listw(neighbors, style="W")
+  W_mat<-nb2mat(neighbors)
+  I<-diag(1,nrow(points), nrow(points))
+  y <- rnorm(nrow(points), mean=5, sd=1)
+  y <- solve(I-rho*W_mat)%*%(y)
+  points$y <- y
+  return(list(points = points, W=W))
+}
+
+simulate_res_impact <- function(res, points){
+  hmap <- base_hmaps[[res]]
+  values <- st_join(st_as_sf(points) %>%
+                      st_transform(4326), hmap, join = st_within) %>%
+    group_by(h3_index) %>%
+    summarise(y = mean(y, na.rm = TRUE)) %>%
+    st_drop_geometry() %>%
+    filter(!is.na(h3_index))
+  hmap <- hmap %>%
+    left_join(values, by = join_by(h3_index)) %>%
+    filter(!is.na(y))
+
+  nb <-poly2nb(hmap, queen=T)
+  nb <- mstconnect(hmap, nb, distance = "centroid")
+  #plot(nb, st_coordinates(st_centroid(hmap)))
+  W_hmap <- nb2listw(nb)
+  moran <- moran.mc(values$y, W_hmap, 999)
+  return(data.frame(moran=moran$statistic, p=moran$p.value))
 }

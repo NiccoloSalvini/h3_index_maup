@@ -6,6 +6,8 @@ library(tidyr)
 library(purrr)
 library(spdep)
 library(patchwork)
+library(ggplot2)
+
 
 #  01 Brute Analysis for each for each resolution ----
 
@@ -156,16 +158,29 @@ create_hexagon_sf_list <- function(data, resolutions) {
       )
 
     # # Add original data points
-    # data_points_sf <- st_as_sf(data, coords = c("lng", "lat"), crs = 4326) %>%
-    #   mutate(resolution = as.character(res))
-    #
-    # return(list(hexagons = hexagons_sf, points = data_points_sf))
+    data_points_sf <- st_as_sf(data, coords = c("lng", "lat"), crs = 4326) %>%
+      mutate(resolution = as.character(res))
+
+    return(list(hexagons = hexagons_sf, points = data_points_sf))
 
     return(hexagons_sf)
   })
 }
 
 h3_hexagons_sf_list <- create_hexagon_sf_list(dataset, resolutions)
+
+
+
+# represent just points ----
+ggplot() +
+  geom_sf(data = gmanchester_sf, fill = NA, color = "gray") + # Plot the boundaries
+  geom_point(data = as.data.frame.matrix(road_safety_greater_manchester), aes(x = lng, y = lat), size = 1, alpha = .3) +
+  labs(x = "",
+       y = "") +
+  theme_minimal(
+
+  )
+
 
 # 3D vis of hexagons at different resolutions
 p <- plot_ly()
