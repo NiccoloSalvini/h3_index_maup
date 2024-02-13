@@ -183,7 +183,6 @@ map(base_hmaps, .f = lisa_map)
 
 
 # 5 LISA Significance map ----
-#
 significance_map <- function(hex_map, points = gs_mean_prices_intersect_sf  ,
                              permutations = 999, alpha = .05, stat_type = "mean") {
 
@@ -222,7 +221,7 @@ significance_map <- function(hex_map, points = gs_mean_prices_intersect_sf  ,
     tm_fill("sig", palette = pal, title =  "") +
     tm_borders(alpha = .2) +
     tm_layout(
-      title = paste("Significance h3 res:", res, collapse = " "),
+      title = paste("LISA sign. per h3 res:", res, collapse = " "),
       legend.outside = TRUE,
       frame = F
       )
@@ -243,3 +242,8 @@ plan(sequential)
 
 # lisa resolution 0 contro lisa res x miss classification.
 # perc per area
+
+# 6 How many points change cluster? ----
+
+
+

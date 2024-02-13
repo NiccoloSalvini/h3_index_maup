@@ -1,10 +1,60 @@
 library(sf)
+library(dplyr)
 library(ggplot2)
 library(leaflet)
 library(shiny)
 library(h3)
 library(here)
-source(here("notebooks","utils.R"))
+
+# source(here("notebooks","utils.R")
+theme_map <- function(...) {
+  theme_minimal() +
+    theme(
+      text = element_text(# family = default_font_family
+        color = "black"),
+      # remove all axes
+      axis.line = element_blank(),
+      axis.text.x = element_blank(),
+      axis.text.y = element_blank(),
+      axis.ticks = element_blank(),
+      # add a subtle grid
+      panel.grid.major = element_line(color = "#dbdbd9", size = 0.2),
+      panel.grid.minor = element_blank(),
+      # background colors
+      plot.background = element_rect(fill = "white",
+                                     color = NA),
+      panel.background = element_rect(fill = "white",
+                                      color = NA),
+      legend.background = element_rect(fill = "white",
+                                       color = NA),
+      # borders and margins
+      plot.margin = unit(c(.5, .5, .2, .5), "cm"),
+      panel.border = element_blank(),
+      panel.spacing = unit(c(-.1, 0.2, .2, 0.2), "cm"),
+      # titles
+      legend.title = element_text(size = 11),
+      legend.text = element_text(size = 9, hjust = 0,
+                                 color = "black"),
+      plot.title = element_text(size = 15, hjust = 0.5,
+                                color = "black"),
+      plot.subtitle = element_text(size = 10, hjust = 0.5,
+                                   color = "black",
+                                   margin = margin(b = -0.1,
+                                                   t = -0.1,
+                                                   l = 2,
+                                                   unit = "cm"),
+                                   debug = F),
+      # captions
+      plot.caption = element_text(size = 7,
+                                  hjust = .5,
+                                  margin = margin(t = 0.2,
+                                                  b = 0,
+                                                  unit = "cm"),
+                                  color = "#939184"),
+      ...
+    )
+}
+
 
 
 projcrs = "+proj=longlat +datum=WGS84 +no_defs"
@@ -88,9 +138,10 @@ server <- function(input, output) {
                         grid_size <- c(input$squareResolution, input$squareResolution)
 
                         grid <-
-                          st_make_grid(reproj_sf_road_safety_greater_manchester, cellsize = grid_size/10000, square = T) %>% #, cellsize = grid_size
+                          st_make_grid(sf_road_safety_greater_manchester, cellsize = grid_size/10000, square = T) %>% #, cellsize = grid_size
+                          # reproj_sf_road_safety_greater_manchester
                           st_as_sf() %>%
-                          mutate(id = 1:n())
+                          dplyr::mutate(id = 1:dplyr::n())
 
                         index <- which(lengths(st_intersects(grid, sf_road_safety_greater_manchester)) > 0)
 
@@ -105,7 +156,7 @@ server <- function(input, output) {
                           ggplot() +
                           geom_sf(data = gmanchester_st) +
                           geom_sf(aes(fill = n, alpha= 0.6),lwd = 0.1, color = "white") +
-                          geom_sf(data = reproj_sf_road_safety_greater_manchester, alpha = 0.3) +
+                          geom_sf(data = sf_road_safety_greater_manchester, alpha = 0.3) +
                           theme_map()
 
                         regular
