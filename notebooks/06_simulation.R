@@ -32,6 +32,7 @@ mstconnect <- function(polys, nb, distance="centroid"){
 }
 
 map <- read_sf("data/ProvCM01012023_g/ProvCM01012023_g_WGS84.shp")
+
 gen_hmap <- function(map, res=1){
   map %>%
     st_union() %>%
@@ -48,7 +49,7 @@ gen_points <- function(base_map, rho=0){
   W <- nb2listw(nb)
   #I<-diag(1,nrow(base_map), nrow(base_map))
   y <- rnorm(nrow(base_map), mean=0, sd=1)
-#  y <- solve(I-rho*W_mat)%*%(y)
+  #y <- solve(I-rho*W_mat)%*%(y)
   #y <- solve(I - rho * W_mat, y)
 
   W_mat_sparse <- as(W_mat, "sparseMatrix")
@@ -63,6 +64,7 @@ gen_points <- function(base_map, rho=0){
   y <- as.numeric((y-mean(y))/sd(y))
   return(list(y = y, W=W))
 }
+
 simulate_res_impact <- function(res, points){
   hmap <- base_hmaps[[res]]
 

@@ -98,7 +98,7 @@ match_palette <- function(patterns, classifications, colors){
 # 3 choose res vector and map through each resolution -----
 plan(multisession, workers = parallel::detectCores())
 
-res_vector = 3:8
+res_vector = 3:6
 
 # build maps
 base_hmaps <- future_map(res_vector, gen_hmap, map=map)
@@ -118,6 +118,7 @@ lisa_map <- function(hex_map,
                      alpha = .05) {
 
   res = unique(pull(hex_map, res))
+
   values <- st_join(st_as_sf(points) %>%
                       st_transform(4326), hex_map, join = st_within) %>%
     group_by(h3_index) %>%
@@ -131,7 +132,21 @@ lisa_map <- function(hex_map,
     left_join(values, by = join_by(h3_index)) %>%
     filter(!is.na(stat))
 
+  N = nrow(hex_map)
   w <- queen_weights(hex_map)
+  nb <-poly2nb(hex_map, queen=T)
+  nb <- mstconnect(hex_map, nb)
+  W_hmap <- nb2listw(nb, zero.policy = TRUE)
+
+  tic(paste("calculating Moran's I index per res", res," when data points are:", N ))
+  if( 2*N < 999 ){
+    cat("max num nsim available", 2*N, "while N is ", N, "\n")
+    moran <- moran.mc(hex_map$stat, W_hmap, nsim = 2*N)
+  } else {
+    moran <- moran.mc(hex_map$stat, W_hmap, 999)
+  }
+  # moran <- moran.mc(hex_map$stat, W_hmap, nsim = 999)
+
   lisa <- local_moran(w, hex_map['stat'])
   clusters <- lisa_clusters(lisa, cutoff = alpha)
   labels <- lisa_labels(lisa)
@@ -158,28 +173,42 @@ lisa_map <- function(hex_map,
       legend.outside = TRUE,
       frame = F
   )
+  obj = list(plt = plt, values = lisa$lisa_vals,  pvalues = pvalue, morans_i =moran, res = res)
 
-  # plt = tm_shape(hex_map) +
-  #   tm_fill("lisa_clusters") +
-  #           # breaks = c(1, 2, 3, 4, 5, 6),
-  #           # title = "",
-  #           # palette =  c("red", "blue", "lightpink", "skyblue2", "white"),
-  #           # labels = c("High-High", "Low-Low", "High-Low",
-  #           #                     "Low-High", "Non-significant")) +
-  #   tm_legend(text.size = 1) +
-  #   tm_borders(alpha = 0.5) +
-  #   tm_layout(
-  #     title = paste("LISA per H3, res: ", res),
-  #     legend.outside = TRUE)
   cat("generating plot for res:", res, "\n")
-  tmap_save(tm = plt, paste0(lisa_plot_path, "/lisa_plot_res_", res, ".png", collapse = "/"))
+  tmap_save(tm = obj$plt, paste0(lisa_plot_path, "/lisa_plot_res_", res, ".png", collapse = "/"))
 
-  return(plt)
+  return(obj)
 
 }
 
 # RUN!
 map(base_hmaps, .f = lisa_map)
+lisas = map(base_hmaps[-1], .f = lisa_map)
+
+## represent loss in spatial aggregation
+calc_loss <- function(obj) {
+  avg_lisa = mean(obj$values)
+  actual_moran = obj$morans_i$statistic
+  res = obj$res
+  vec = tibble(
+    avg_lisa = avg_lisa,
+    actual_moran = actual_moran,
+    res = res
+    )
+
+  return(vec)
+}
+
+
+
+
+
+df_comparisons = purrr::map_dfr(lisas, calc_loss)
+df_comparisons %>%
+  mutate(
+    diff = abs(avg_lisa - actual_moran )
+    )
 
 
 # 5 LISA Significance map ----
